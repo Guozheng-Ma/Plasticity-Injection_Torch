@@ -74,56 +74,18 @@ class Actor(nn.Module):
         self.trunk = nn.Sequential(nn.Linear(repr_dim, feature_dim),
                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
-        self.original_policy = nn.Sequential(nn.Linear(feature_dim, hidden_dim),
+        self.policy = nn.Sequential(nn.Linear(feature_dim, hidden_dim),
                                     nn.ReLU(inplace=True),
                                     nn.Linear(hidden_dim, hidden_dim),
                                     nn.ReLU(inplace=True),
                                     nn.Linear(hidden_dim, action_shape[0]))
-
-        self.delta_policy = nn.Sequential(nn.Linear(feature_dim, hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(hidden_dim, hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(hidden_dim, action_shape[0]))
-
-        self.bias_policy = nn.Sequential(nn.Linear(feature_dim, hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(hidden_dim, hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(hidden_dim, action_shape[0]))
-        for param in self.bias_policy.parameters():
-            param.requires_grad = False        
 
         self.apply(utils.weight_init)
-        self.delta_policy.load_state_dict(self.original_policy.state_dict())
-        self.bias_policy.load_state_dict(self.original_policy.state_dict())
-
-        # Set the flag
-        self.use_pi = False
-
-    def plasticity_injection(self):
-        self.use_pi = True
-        for param in self.original_policy.parameters():
-            param.requires_grad = False
 
     def forward(self, obs, std):
         h = self.trunk(obs)
 
-        if self.use_pi:
-            # original
-            original_mu = self.original_policy(h)
-            # delta
-            delta_mu = self.delta_policy(h)
-            # bias
-            bias_mu = self.bias_policy(h)
-            # compute
-            # q1 = original_q1.detach() + delta_q1 - bias_q1.detach()
-            # q2 = original_q2.detach() + delta_q2 - bias_q2.detach()  
-            mu = original_mu + delta_mu - bias_mu
-        
-        else:
-            mu = self.original_policy(h)
-
+        mu = self.policy(h)
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
 
@@ -171,10 +133,10 @@ class Critic(nn.Module):
 
         # Init and copy the paremeters of original Q to delta and bias Q
         self.apply(utils.weight_init)
-        # self.delta_Q1.load_state_dict(self.original_Q1.state_dict())
-        # self.delta_Q2.load_state_dict(self.original_Q2.state_dict())
-        self.bias_Q1.load_state_dict(self.delta_Q1.state_dict())
-        self.bias_Q2.load_state_dict(self.delta_Q2.state_dict())
+        self.delta_Q1.load_state_dict(self.original_Q1.state_dict())
+        self.delta_Q2.load_state_dict(self.original_Q2.state_dict())
+        self.bias_Q1.load_state_dict(self.original_Q1.state_dict())
+        self.bias_Q2.load_state_dict(self.original_Q2.state_dict())
 
         # Set the flag
         self.use_pi = False
@@ -238,7 +200,6 @@ class DrQV2Agent:
         self.encoder_opt = torch.optim.Adam(self.encoder.parameters(), lr=lr)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-        self.lr = lr
 
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
@@ -248,7 +209,6 @@ class DrQV2Agent:
         self.critic_target.train()
 
     def plasticity_injection(self):
-        # self.actor.plasticity_injection()
         self.critic.plasticity_injection()
         self.critic_target.plasticity_injection()
 
