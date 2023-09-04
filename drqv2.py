@@ -171,10 +171,10 @@ class Critic(nn.Module):
 
         # Init and copy the paremeters of original Q to delta and bias Q
         self.apply(utils.weight_init)
-        self.delta_Q1.load_state_dict(self.original_Q1.state_dict())
-        self.delta_Q2.load_state_dict(self.original_Q2.state_dict())
-        self.bias_Q1.load_state_dict(self.original_Q1.state_dict())
-        self.bias_Q2.load_state_dict(self.original_Q2.state_dict())
+        # self.delta_Q1.load_state_dict(self.original_Q1.state_dict())
+        # self.delta_Q2.load_state_dict(self.original_Q2.state_dict())
+        self.bias_Q1.load_state_dict(self.delta_Q1.state_dict())
+        self.bias_Q2.load_state_dict(self.delta_Q2.state_dict())
 
         # Set the flag
         self.use_pi = False
@@ -248,7 +248,7 @@ class DrQV2Agent:
         self.critic_target.train()
 
     def plasticity_injection(self):
-        self.actor.plasticity_injection()
+        # self.actor.plasticity_injection()
         self.critic.plasticity_injection()
         self.critic_target.plasticity_injection()
 
